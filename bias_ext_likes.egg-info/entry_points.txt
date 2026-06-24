@@ -1,0 +1,2 @@
+[bias.extensions]
+likes = bias_ext_likes.backend.ext:extend
