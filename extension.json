@@ -1,1 +1,26 @@
-{"id":"likes","name":"","version":"0.1.0","category":"feature","authors":["Bias"],"dependencies":["core","users","posts"],"django":{"app_config":"bias_ext_likes.backend.apps.ExtensionConfig","app_label":"likes","migration_module":"bias_ext_likes.backend.django_migrations"},"backend":{"entry":"bias_ext_likes.backend.ext"}}
+{
+  "id": "likes",
+  "name": "Likes",
+  "version": "0.1.0",
+  "category": "feature",
+  "authors": [
+    "Bias"
+  ],
+  "dependencies": [
+    "core",
+    "users",
+    "posts"
+  ],
+  "django": {
+    "app_config": "bias_ext_likes.backend.apps.LikesExtensionConfig",
+    "app_label": "likes",
+    "migration_module": "bias_ext_likes.backend.django_migrations"
+  },
+  "backend": {
+    "entry": "bias_ext_likes.backend.ext"
+  },
+  "extra": {
+    "auto_install": true,
+    "auto_enable": true
+  }
+}

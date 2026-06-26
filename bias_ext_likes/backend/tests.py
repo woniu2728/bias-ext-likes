@@ -12,7 +12,7 @@ from ninja_jwt.tokens import RefreshToken
 from bias_core.extension_settings_service import save_extension_settings
 from bias_core.extensions.bootstrap import build_extension_application
 from bias_core.extensions.registry import ExtensionRegistry
-from extensions.testing import ExtensionRuntimeTestMixin, get_resource_registry
+from bias_core.testing import ExtensionRuntimeTestMixin, get_resource_registry
 from bias_core.extensions.runtime import (
     can_runtime_like_post,
     create_runtime_discussion,
@@ -256,7 +256,7 @@ class LikesExtensionTests(ExtensionRuntimeTestMixin, TestCase):
         notify_mock.assert_called_once_with("notify_post_liked", post_id=self.post.id, from_user=self.liker)
 
     def test_like_post_dispatches_domain_event_after_commit(self):
-        with patch("apps.core.domain_events.get_forum_event_bus") as get_bus_mock:
+        with patch("bias_core.domain_events.get_forum_event_bus") as get_bus_mock:
             bus_mock = Mock()
             get_bus_mock.return_value = bus_mock
 
@@ -283,7 +283,7 @@ class LikesExtensionTests(ExtensionRuntimeTestMixin, TestCase):
             self.assertTrue(can_runtime_like_post(self.post, blocker))
 
             with patch(
-                "apps.core.extensions.policy_runtime_service.get_extension_application",
+                "bias_core.extensions.policy_runtime_service.get_extension_application",
                 return_value=build_extension_application(manager=registry, force=True),
             ):
                 self.assertFalse(can_runtime_like_post(self.post, blocker))
@@ -330,6 +330,8 @@ def _build_like_policy_extension_registry() -> tuple[Path, ExtensionRegistry]:
         booted=True,
     )
     return temp_dir, ExtensionRegistry(extensions_path=extensions_dir)
+
+
 
 
 
