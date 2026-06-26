@@ -6,6 +6,14 @@ requires-python = ">=3.11"
 dependencies = ["bias-core>=0.1,<0.2"]
 [project.entry-points."bias.extensions"]
 likes = "bias_ext_likes.backend.ext:extend"
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["bias_ext_likes*"]
+
+[tool.setuptools.data-files]
+"bias_extensions/likes" = ["extension.json"]
+"bias_extensions/likes/frontend/forum" = ["frontend/forum/index.js", "frontend/forum/likeRuntime.js", "frontend/forum/sdk.js"]
+

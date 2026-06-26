@@ -4,7 +4,7 @@ import {
 } from '@bias/core'
 import { extendForum,
   getUiCopy
-} from '@bias/forum'
+} from '@bias/core/forum'
 import {
   buildLikeSummary,
   canLikePost,
