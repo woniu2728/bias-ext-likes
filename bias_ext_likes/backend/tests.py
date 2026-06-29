@@ -3,28 +3,38 @@ from io import StringIO
 from pathlib import Path
 import shutil
 import uuid
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from django.core.management import call_command
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from ninja_jwt.tokens import RefreshToken
 
-from bias_core.extension_settings_service import save_extension_settings
-from bias_core.extensions.bootstrap import build_extension_application
-from bias_core.extensions.registry import ExtensionRegistry
-from bias_core.testing import ExtensionRuntimeTestMixin, get_resource_registry
+from bias_core.extensions.testing import (
+    ExtensionInstallation,
+    ExtensionRegistry,
+    ExtensionRuntimeTestMixin,
+    build_extension_application,
+    build_extension_test_host,
+    capture_runtime_events,
+    get_resource_registry,
+    save_extension_settings,
+)
 from bias_core.extensions.runtime import (
     can_runtime_like_post,
     create_runtime_discussion,
     like_runtime_post,
+    unlike_runtime_post,
 )
-from bias_core.models import ExtensionInstallation
 from bias_core.extensions.runtime import (
     create_runtime_post,
 )
 from bias_core.extensions.runtime import (
     get_runtime_user_model,
 )
+from bias_ext_likes.backend.events import PostLikedEvent, PostUnlikedEvent
+from bias_ext_likes.backend.models import PostLike
 
 
 class RuntimeModelProxy:
@@ -56,6 +66,40 @@ class LikesExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
         self.assertFalse(any(item.module_id == "likes" for item in resource_registry.get_fields("post")))
         self.assertIsNone(resource_registry.get_dispatch_endpoint("post", "like", "POST", {}))
 
+    def test_notification_integration_is_optional(self):
+        application = build_extension_test_host("likes")
+        listener_names = {
+            listener.handler.__name__
+            for listener in application.events.get_listeners(extension_id="likes")
+        }
+        notification_type_codes = {
+            item.code
+            for item in application.forum_registry.get_notification_types()
+            if item.module_id == "likes"
+        }
+
+        self.assertIsNone(application.get_service("notifications.service"))
+        self.assertNotIn("handle_post_liked_notification", listener_names)
+        self.assertNotIn("handle_post_unliked_notification", listener_names)
+        self.assertNotIn("postLiked", notification_type_codes)
+
+    def test_notification_integration_registers_when_notifications_enabled(self):
+        application = build_extension_test_host("notifications", "likes")
+        listener_names = {
+            listener.handler.__name__
+            for listener in application.events.get_listeners(extension_id="likes")
+        }
+        notification_type_codes = {
+            item.code
+            for item in application.forum_registry.get_notification_types()
+            if item.module_id == "likes"
+        }
+
+        self.assertIsNotNone(application.get_service("notifications.service"))
+        self.assertIn("handle_post_liked_notification", listener_names)
+        self.assertIn("handle_post_unliked_notification", listener_names)
+        self.assertIn("postLiked", notification_type_codes)
+
     def test_inspect_reports_likes_model_as_extension_native(self):
         stdout = StringIO()
         call_command(
@@ -70,12 +114,12 @@ class LikesExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
         owned_item = audit["items"][0]
 
         self.assertEqual(extension["id"], "likes")
-        self.assertIn("0001_state_post_like.py", extension["migration_plan"]["pending_files"])
+        self.assertEqual(extension["migration_plan"]["pending_files"], [])
         self.assertEqual(audit["extension_native_count"], 1)
         self.assertEqual(audit["app_label_migration_required_count"], 0)
         self.assertEqual(audit["app_label_migration_plan_required_count"], 0)
         self.assertTrue(all(item["storage_origin"] == "extension" for item in audit["items"]))
-        self.assertTrue(all(item["model_module"].startswith("extensions.likes") for item in audit["items"]))
+        self.assertTrue(all(item["model_module"].startswith("bias_ext_likes") for item in audit["items"]))
         self.assertEqual(audit["app_label_migration_items"], [])
         self.assertEqual(owned_item["current_app_label"], "likes")
         self.assertEqual(owned_item["target_app_label"], "likes")
@@ -186,6 +230,31 @@ class LikesExtensionTests(ExtensionRuntimeTestMixin, TestCase):
         with self.assertRaisesMessage(ValueError, "已经点赞过了"):
             like_runtime_post(self.post.id, self.liker)
 
+    def test_like_post_uses_post_action_context_contract(self):
+        with patch(
+            "bias_ext_likes.backend.services.get_runtime_post_by_id",
+            side_effect=AssertionError("likes actions must use posts action context"),
+            create=True,
+        ), CaptureQueriesContext(connection) as queries:
+            with self.captureOnCommitCallbacks() as callbacks:
+                like_runtime_post(self.post.id, self.liker)
+
+        self.assertEqual(len(callbacks), 1)
+        self.assertTrue(PostLike.objects.filter(post_id=self.post.id, user=self.liker).exists())
+        self.assertLessEqual(len(queries), 8)
+
+    def test_like_missing_post_returns_not_found(self):
+        token = RefreshToken.for_user(self.liker).access_token
+
+        response = self.client.post(
+            "/api/posts/999999/like",
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+
+        self.assertEqual(response.status_code, 404, response.content)
+        self.assertEqual(response.json()["error"], "帖子不存在")
+
     def test_like_own_post_returns_bad_request_in_api(self):
         token = RefreshToken.for_user(self.author).access_token
 
@@ -253,22 +322,69 @@ class LikesExtensionTests(ExtensionRuntimeTestMixin, TestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 like_runtime_post(self.post.id, self.liker)
 
-        notify_mock.assert_called_once_with("notify_post_liked", post_id=self.post.id, from_user=self.liker)
+        notify_mock.assert_called_once()
+        args, kwargs = notify_mock.call_args
+        self.assertEqual(args[0], "notify_post_liked_from_event")
+        self.assertEqual(kwargs["from_user"], self.liker)
+        self.assertEqual(kwargs["event"].post_id, self.post.id)
+        self.assertEqual(kwargs["event"].post_user_id, self.author.id)
+
+    def test_unlike_post_dispatches_notification_sync_event(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            like_runtime_post(self.post.id, self.liker)
+
+        with patch("bias_ext_likes.backend.listeners.notify_runtime_notification") as notify_mock:
+            with self.captureOnCommitCallbacks(execute=True):
+                unlike_runtime_post(self.post.id, self.liker)
+
+        notify_mock.assert_called_once_with(
+            "delete_post_liked_for_post_user",
+            post_id=self.post.id,
+            from_user=self.liker,
+        )
 
     def test_like_post_dispatches_domain_event_after_commit(self):
-        with patch("bias_core.domain_events.get_forum_event_bus") as get_bus_mock:
-            bus_mock = Mock()
-            get_bus_mock.return_value = bus_mock
-
+        events, dispatch_patch = capture_runtime_events()
+        with dispatch_patch as dispatch_mock:
             with self.captureOnCommitCallbacks() as callbacks:
                 like_runtime_post(self.post.id, self.liker)
 
             self.assertEqual(len(callbacks), 1)
-            bus_mock.dispatch.assert_not_called()
+            dispatch_mock.assert_not_called()
+            self.assertEqual(events, [])
 
             callbacks[0]()
 
-        bus_mock.dispatch.assert_called_once()
+        dispatch_mock.assert_called_once()
+        self.assertEqual(len(events), 1)
+        self.assertIsInstance(events[0], PostLikedEvent)
+        self.assertEqual(events[0].post_id, self.post.id)
+        self.assertEqual(events[0].actor_user_id, self.liker.id)
+        self.assertEqual(events[0].post_user_id, self.author.id)
+        self.assertEqual(events[0].discussion_title, self.discussion.title)
+
+    def test_unlike_post_dispatches_domain_event_after_commit(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            like_runtime_post(self.post.id, self.liker)
+
+        events, dispatch_patch = capture_runtime_events()
+        with dispatch_patch as dispatch_mock:
+            with self.captureOnCommitCallbacks() as callbacks:
+                unlike_runtime_post(self.post.id, self.liker)
+
+            self.assertEqual(len(callbacks), 1)
+            dispatch_mock.assert_not_called()
+            self.assertEqual(events, [])
+
+            callbacks[0]()
+
+        dispatch_mock.assert_called_once()
+        self.assertEqual(len(events), 1)
+        self.assertIsInstance(events[0], PostUnlikedEvent)
+        self.assertEqual(events[0].post_id, self.post.id)
+        self.assertEqual(events[0].actor_user_id, self.liker.id)
+        self.assertEqual(events[0].post_user_id, self.author.id)
+        self.assertEqual(events[0].discussion_title, self.discussion.title)
 
     def test_policy_extender_can_deny_like_post(self):
         temp_dir, registry = _build_like_policy_extension_registry()

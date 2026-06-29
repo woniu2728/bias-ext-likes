@@ -9,7 +9,11 @@
   "dependencies": [
     "core",
     "users",
+    "content",
     "posts"
+  ],
+  "optional_dependencies": [
+    "notifications"
   ],
   "django": {
     "app_config": "bias_ext_likes.backend.apps.LikesExtensionConfig",

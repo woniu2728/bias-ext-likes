@@ -1,5 +1,5 @@
 from bias_core.extensions.runtime import get_runtime_user_by_id, notify_runtime_notification
-from bias_ext_likes.backend.events import PostLikedEvent
+from bias_ext_likes.backend.events import PostLikedEvent, PostUnlikedEvent
 
 
 def handle_post_liked_notification(event: PostLikedEvent) -> None:
@@ -7,7 +7,15 @@ def handle_post_liked_notification(event: PostLikedEvent) -> None:
     if from_user is None:
         return
 
-    notify_runtime_notification("notify_post_liked", post_id=event.post_id, from_user=from_user)
+    notify_runtime_notification("notify_post_liked_from_event", event=event, from_user=from_user)
+
+
+def handle_post_unliked_notification(event: PostUnlikedEvent) -> None:
+    from_user = _resolve_user_or_none(event.actor_user_id)
+    if from_user is None:
+        return
+
+    notify_runtime_notification("delete_post_liked_for_post_user", post_id=event.post_id, from_user=from_user)
 
 
 def _resolve_user_or_none(user_id: int):

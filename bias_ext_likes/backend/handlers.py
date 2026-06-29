@@ -4,10 +4,10 @@ from django.core.exceptions import PermissionDenied
 
 from bias_core.extensions.platform import api_error
 from bias_core.extensions.runtime import (
-    is_runtime_post_not_found,
     like_runtime_post,
     unlike_runtime_post,
 )
+from bias_ext_likes.backend.services import PostActionContextNotFound
 
 
 def dispatch_post_like_mutation(context):
@@ -24,12 +24,10 @@ def dispatch_post_like(context):
         return {"message": "点赞成功"}
     except PermissionDenied as e:
         return api_error(str(e), status=403)
+    except PostActionContextNotFound:
+        return api_error("帖子不存在", status=404)
     except ValueError as e:
         return api_error(str(e), status=400)
-    except Exception as e:
-        if is_runtime_post_not_found(e):
-            return api_error("帖子不存在", status=404)
-        raise
 
 
 def dispatch_post_unlike(context):
@@ -39,12 +37,10 @@ def dispatch_post_unlike(context):
         return {"message": "取消点赞成功"}
     except PermissionDenied as e:
         return api_error(str(e), status=403)
+    except PostActionContextNotFound:
+        return api_error("帖子不存在", status=404)
     except ValueError as e:
         return api_error(str(e), status=400)
-    except Exception as e:
-        if is_runtime_post_not_found(e):
-            return api_error("帖子不存在", status=404)
-        raise
 
 
 def _post_object_id(context) -> int:
