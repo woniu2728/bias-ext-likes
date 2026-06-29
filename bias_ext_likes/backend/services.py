@@ -77,24 +77,27 @@ def unlike_post(post_id: int, user: Any) -> bool:
     return True
 
 
-def can_like_post(post: Any, user: Any) -> bool:
-    if not _can_like_post_without_extension_policy(post, user):
+def can_like_post(post: Any, user: Any, *, visibility_checked: bool = False) -> bool:
+    if not _can_like_post_without_extension_policy(post, user, visibility_checked=visibility_checked):
         return False
     return bool(evaluate_extension_policy(
         "post.like",
         default=True,
         user=user,
         post=post,
+        post_visibility_checked=bool(visibility_checked),
     ))
 
 
-def _can_like_post_without_extension_policy(post: Any, user: Any) -> bool:
+def _can_like_post_without_extension_policy(post: Any, user: Any, *, visibility_checked: bool = False) -> bool:
     if not user or not user.is_authenticated:
         return False
     if user.is_suspended:
         return False
     if post.user_id == user.id and not can_like_own_post():
         return False
+    if visibility_checked:
+        return True
     return can_runtime_view_post(post, user)
 
 
@@ -128,9 +131,18 @@ class LikePostPolicy(AuthorizationPolicy):
             if post.user_id == user.id and not can_like_own_post():
                 return False
             return None
-        return _can_like_post_without_extension_policy(post, user) if post is not None else None
+        visibility_checked = bool(context.get("post_visibility_checked"))
+        return _can_like_post_without_extension_policy(
+            post,
+            user,
+            visibility_checked=visibility_checked,
+        ) if post is not None else None
 
 
 def resolve_post_can_like(post, context: dict) -> bool:
     user = context.get("user")
-    return bool(user and can_like_post(post, user))
+    return bool(user and can_like_post(
+        post,
+        user,
+        visibility_checked=bool(context.get("post_visibility_checked")),
+    ))
