@@ -9,8 +9,7 @@
   "dependencies": [
     "core",
     "users",
-    "content",
-    "posts"
+    "content"
   ],
   "optional_dependencies": [
     "notifications"
