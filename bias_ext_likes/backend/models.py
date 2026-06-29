@@ -7,7 +7,7 @@ class PostLike(models.Model):
     帖子点赞记录，由 likes 扩展拥有。
     """
 
-    post = models.ForeignKey("posts.Post", on_delete=models.CASCADE, related_name="likes")
+    post = models.ForeignKey("content.Post", on_delete=models.CASCADE, related_name="likes")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_likes")
     created_at = models.DateTimeField(auto_now_add=True)
 
