@@ -7,13 +7,26 @@ from bias_core.extensions.platform import AuthorizationPolicy
 from bias_core.extensions.platform import dispatch_forum_event_after_commit
 from bias_core.extensions.platform import evaluate_extension_policy
 from bias_core.extensions.platform import get_extension_settings
-from bias_core.extensions.runtime import (
-    can_runtime_view_post,
-    ensure_runtime_user_not_suspended,
-    get_runtime_post_action_context,
-)
 from bias_ext_likes.backend.events import PostLikedEvent, PostUnlikedEvent
 from bias_ext_likes.backend.models import PostLike
+
+
+def can_runtime_view_post(*args, **kwargs):
+    from bias_core.extensions.runtime import can_runtime_view_post as runtime_can_view_post
+
+    return runtime_can_view_post(*args, **kwargs)
+
+
+def ensure_runtime_user_not_suspended(*args, **kwargs):
+    from bias_core.extensions.runtime import ensure_runtime_user_not_suspended as runtime_ensure_user_not_suspended
+
+    return runtime_ensure_user_not_suspended(*args, **kwargs)
+
+
+def get_runtime_post_action_context(*args, **kwargs):
+    from bias_core.extensions.runtime import get_runtime_post_action_context as runtime_get_post_action_context
+
+    return runtime_get_post_action_context(*args, **kwargs)
 
 
 class PostActionContextNotFound(ValueError):

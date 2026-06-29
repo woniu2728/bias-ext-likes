@@ -21,20 +21,38 @@ from bias_core.extensions.testing import (
     get_resource_registry,
     save_extension_settings,
 )
-from bias_core.extensions.runtime import (
-    can_runtime_like_post,
-    create_runtime_discussion,
-    like_runtime_post,
-    unlike_runtime_post,
-)
-from bias_core.extensions.runtime import (
-    create_runtime_post,
-)
-from bias_core.extensions.runtime import (
-    get_runtime_user_model,
-)
 from bias_ext_likes.backend.events import PostLikedEvent, PostUnlikedEvent
 from bias_ext_likes.backend.models import PostLike
+
+
+def _runtime_facade(name: str):
+    from importlib import import_module
+
+    return getattr(import_module("bias_core.extensions.runtime"), name)
+
+
+def can_runtime_like_post(*args, **kwargs):
+    return _runtime_facade("can_runtime_like_post")(*args, **kwargs)
+
+
+def create_runtime_discussion(*args, **kwargs):
+    return _runtime_facade("create_runtime_discussion")(*args, **kwargs)
+
+
+def like_runtime_post(*args, **kwargs):
+    return _runtime_facade("like_runtime_post")(*args, **kwargs)
+
+
+def unlike_runtime_post(*args, **kwargs):
+    return _runtime_facade("unlike_runtime_post")(*args, **kwargs)
+
+
+def create_runtime_post(*args, **kwargs):
+    return _runtime_facade("create_runtime_post")(*args, **kwargs)
+
+
+def get_runtime_user_model(*args, **kwargs):
+    return _runtime_facade("get_runtime_user_model")(*args, **kwargs)
 
 
 class RuntimeModelProxy:

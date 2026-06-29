@@ -3,8 +3,13 @@ from __future__ import annotations
 from django.db.models import Count, Exists, IntegerField, OuterRef, Prefetch, Subquery
 from django.db.models.functions import Coalesce
 
-from bias_core.extensions.runtime import serialize_runtime_user
 from bias_ext_likes.backend.models import PostLike
+
+
+def serialize_runtime_user(*args, **kwargs):
+    from bias_core.extensions.runtime import serialize_runtime_user as runtime_serialize_user
+
+    return runtime_serialize_user(*args, **kwargs)
 
 
 def post_like_preload_resolver(context: dict):

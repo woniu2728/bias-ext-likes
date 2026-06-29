@@ -3,11 +3,19 @@ from __future__ import annotations
 from django.core.exceptions import PermissionDenied
 
 from bias_core.extensions.platform import api_error
-from bias_core.extensions.runtime import (
-    like_runtime_post,
-    unlike_runtime_post,
-)
 from bias_ext_likes.backend.services import PostActionContextNotFound
+
+
+def like_runtime_post(*args, **kwargs):
+    from bias_core.extensions.runtime import like_runtime_post as runtime_like_post
+
+    return runtime_like_post(*args, **kwargs)
+
+
+def unlike_runtime_post(*args, **kwargs):
+    from bias_core.extensions.runtime import unlike_runtime_post as runtime_unlike_post
+
+    return runtime_unlike_post(*args, **kwargs)
 
 
 def dispatch_post_like_mutation(context):
