@@ -8,6 +8,7 @@ from bias_core.extensions import (
     LifecycleExtender,
     ModelExtender,
     PolicyExtender,
+    RuntimeServiceContractExtender,
     SearchDriverExtender,
     ServiceProviderExtender,
     SettingsExtender,
@@ -105,6 +106,15 @@ def service_extenders():
         ServiceProviderExtender(
             key="likes.service",
             provider=like_service_provider,
+        ),
+        RuntimeServiceContractExtender().service(
+            "likes.service",
+            required_values=("model",),
+            required_methods=(
+                "can_like_post",
+                "like_post",
+                "unlike_post",
+            ),
         ),
         LifecycleExtender(),
     )
