@@ -15,6 +15,7 @@ from bias_core.extensions.testing import (
     ExtensionInstallation,
     ExtensionRegistry,
     ExtensionRuntimeTestMixin,
+    assert_runtime_service_contracts,
     build_extension_application,
     build_extension_test_host,
     capture_runtime_events,
@@ -71,6 +72,7 @@ class LikesExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
         application = self.bootstrap_extensions("likes")
         service = application.get_service("likes.service")
 
+        assert_runtime_service_contracts(application, "likes", "likes.service")
         self.assertIn("likes.service", application.get_service_provider_keys(extension_id="likes"))
         self.assertEqual(service["model"].__name__, "PostLike")
         for key in ("like_post", "unlike_post", "can_like_post"):
