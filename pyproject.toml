@@ -3,7 +3,11 @@ name = "bias-ext-likes"
 version = "0.1.0"
 description = "Bias likes Extension"
 requires-python = ">=3.11"
-dependencies = ["bias-core>=0.1,<0.2"]
+dependencies = [
+  "bias-core>=0.1,<0.2",
+  "bias-ext-users>=0.1,<0.2",
+  "bias-content>=0.1,<0.2",
+]
 
 [project.entry-points."bias.extensions"]
 likes = "bias_ext_likes.backend.ext:extend"
@@ -23,5 +27,5 @@ include = ["bias_ext_likes*"]
   "frontend/forum/sdk.js",
 ]
 
-[tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "bias_core.extension_test_settings"
+[tool.pytest."ini_options"]
+"DJANGO_SETTINGS_MODULE" = "bias_core.extension_test_settings"

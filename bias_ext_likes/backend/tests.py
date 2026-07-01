@@ -338,7 +338,7 @@ class LikesExtensionTests(ExtensionRuntimeTestMixin, TestCase):
         self.assertNotIn(other_post.id, ids)
 
     def test_like_post_dispatches_domain_event_instead_of_direct_notification_call(self):
-        with patch("bias_ext_likes.backend.listeners.notify_runtime_notification") as notify_mock:
+        with patch("bias_ext_likes.backend.listeners._call_notification") as notify_mock:
             with self.captureOnCommitCallbacks(execute=True):
                 like_runtime_post(self.post.id, self.liker)
 
@@ -353,7 +353,7 @@ class LikesExtensionTests(ExtensionRuntimeTestMixin, TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             like_runtime_post(self.post.id, self.liker)
 
-        with patch("bias_ext_likes.backend.listeners.notify_runtime_notification") as notify_mock:
+        with patch("bias_ext_likes.backend.listeners._call_notification") as notify_mock:
             with self.captureOnCommitCallbacks(execute=True):
                 unlike_runtime_post(self.post.id, self.liker)
 

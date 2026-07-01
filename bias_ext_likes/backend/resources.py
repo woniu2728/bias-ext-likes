@@ -6,12 +6,6 @@ from django.db.models.functions import Coalesce
 from bias_ext_likes.backend.models import PostLike
 
 
-def serialize_runtime_user(*args, **kwargs):
-    from bias_core.extensions.runtime import serialize_runtime_user as runtime_serialize_user
-
-    return runtime_serialize_user(*args, **kwargs)
-
-
 def post_like_preload_resolver(context: dict):
     prefetches = []
     user = context.get("user")
@@ -73,8 +67,11 @@ def resolve_post_is_liked(post, context: dict) -> bool:
 def resolve_post_likes(post, context: dict) -> list[dict]:
     cached = getattr(post, "likes_cache", None)
     likes = cached if cached is not None else PostLike.objects.filter(post_id=post.id).select_related("user")
+    from bias_core.extensions.runtime import get_runtime_resource_registry
+
+    registry = get_runtime_resource_registry()
     return [
-        serialize_runtime_user(like.user, resource="post_user", context=context)
+        registry.serialize("post_user", like.user, context)
         for like in likes
         if getattr(like, "user", None)
     ]

@@ -11,22 +11,24 @@ from bias_ext_likes.backend.events import PostLikedEvent, PostUnlikedEvent
 from bias_ext_likes.backend.models import PostLike
 
 
-def can_runtime_view_post(*args, **kwargs):
-    from bias_core.extensions.runtime import can_runtime_view_post as runtime_can_view_post
+def get_runtime_service(service_key: str, default=None):
+    from bias_core.extensions.runtime import get_runtime_service as runtime_get_service
 
-    return runtime_can_view_post(*args, **kwargs)
-
-
-def ensure_runtime_user_not_suspended(*args, **kwargs):
-    from bias_core.extensions.runtime import ensure_runtime_user_not_suspended as runtime_ensure_user_not_suspended
-
-    return runtime_ensure_user_not_suspended(*args, **kwargs)
+    return runtime_get_service(service_key, default)
 
 
-def get_runtime_post_action_context(*args, **kwargs):
-    from bias_core.extensions.runtime import get_runtime_post_action_context as runtime_get_post_action_context
+def _service_method(service, name: str):
+    if isinstance(service, dict):
+        method = service.get(name)
+    else:
+        method = getattr(service, name, None)
+    if not callable(method):
+        raise RuntimeError(f"Likes 扩展运行时服务缺少方法: {name}")
+    return method
 
-    return runtime_get_post_action_context(*args, **kwargs)
+
+def ensure_user_not_suspended(user, action: str) -> None:
+    _service_method(get_runtime_service("users.service"), "ensure_not_suspended")(user, action)
 
 
 class PostActionContextNotFound(ValueError):
@@ -43,7 +45,7 @@ class PostActionContext:
 
 
 def like_post(post_id: int, user: Any) -> bool:
-    ensure_runtime_user_not_suspended(user, "点赞帖子")
+    ensure_user_not_suspended(user, "点赞帖子")
     post = _require_post_action_context(post_id, user)
     if post.user_id == user.id and not can_like_own_post():
         raise ValueError("不能给自己的帖子点赞")
@@ -71,7 +73,7 @@ def like_post(post_id: int, user: Any) -> bool:
 
 
 def unlike_post(post_id: int, user: Any) -> bool:
-    ensure_runtime_user_not_suspended(user, "点赞帖子")
+    ensure_user_not_suspended(user, "点赞帖子")
     post = _require_post_action_context(post_id, user)
 
     deleted_count, _ = PostLike.objects.filter(post_id=post.id, user=user).delete()
@@ -111,7 +113,7 @@ def _can_like_post_without_extension_policy(post: Any, user: Any, *, visibility_
         return False
     if visibility_checked:
         return True
-    return can_runtime_view_post(post, user)
+    return _service_method(get_runtime_service("content.posts"), "can_view")(post, user)
 
 
 def can_like_own_post() -> bool:
@@ -119,7 +121,11 @@ def can_like_own_post() -> bool:
 
 
 def _require_post_action_context(post_id: int, user: Any) -> PostActionContext:
-    context = get_runtime_post_action_context(post_id, user=user, require_visible=True)
+    context = _service_method(get_runtime_service("content.posts"), "get_action_context")(
+        post_id,
+        user=user,
+        require_visible=True,
+    )
     if context is None:
         raise PostActionContextNotFound("帖子不存在")
     return PostActionContext(
